@@ -36,10 +36,12 @@ src/data/processed/*.parquet
 !src/data/raw/sample_*.json
 
 # Results
-results/figures/*.png
-results/figures/*.pdf
-results/tables/*.csv
-!results/.gitkeep
+src/results/figures/*.png
+src/results/figures/*.pdf
+src/results/tables/*.csv
+src/results/tables/*.json
+
+!src/results/.gitkeep
 
 # Logs
 logs/*.log
