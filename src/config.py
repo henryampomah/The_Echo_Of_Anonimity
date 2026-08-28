@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 # Project root
-PROJECT_ROOT = Path(__file__).parent.absolute()
+PROJECT_ROOT = Path(__file__).parent
 
 # Data paths
 DATA_RAW = PROJECT_ROOT / "data" / "raw"
