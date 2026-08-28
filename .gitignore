@@ -28,12 +28,12 @@ wheels/
 *.ipynb_checkpoints
 
 # Data
-data/raw/*.csv
-data/raw/*.json
-data/processed/*.csv
-data/processed/*.parquet
-!data/raw/sample_*.csv
-!data/raw/sample_*.json
+src/data/raw/*.csv
+src/data/raw/*.json
+src/data/processed/*.csv
+src/data/processed/*.parquet
+!src/data/raw/sample_*.csv
+!src/data/raw/sample_*.json
 
 # Results
 results/figures/*.png
