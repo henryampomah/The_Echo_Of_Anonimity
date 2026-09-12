@@ -29,21 +29,26 @@ wheels/
 
 # Data
 data/raw/*.csv
-src/data/raw/*.json
+data/raw/*.json
 data/processed/*.csv
 data/processed/*.json
 data/processed/*.parquet
-!src/data/raw/sample_*.csv
-!src/data/raw/sample_*.json
+!data/raw/sample_*.csv
+!data/raw/sample_*.json
 
 # Results
+results/figures/*.png
+results/figures/*.pdf
+results/tables/*.csv
+results/tables/*.json
+results/tables/*.joblib
+
+!results/.gitkeep
 src/results/figures/*.png
 src/results/figures/*.pdf
 src/results/tables/*.csv
 src/results/tables/*.json
-
-!src/results/.gitkeep
-
+src/results/tables/*.joblib
 # Logs
 logs/*.log
 !logs/.gitkeep

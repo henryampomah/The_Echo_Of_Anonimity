@@ -94,6 +94,12 @@ def _credibility(url):
     except Exception:
         return 0.3
 
+def _domain(url):
+    try:
+        return urlparse(url).netloc.lower()
+    except ValueError:
+        return ""
+
 def _link_features(text):
     urls = _extract_urls(text)
     if not urls:
@@ -104,7 +110,7 @@ def _link_features(text):
         "link_count":             len(urls),
         "avg_domain_credibility": sum(creds) / len(creds),
         "rigor_score":            len(urls) * (sum(creds) / len(creds)),
-        "unique_domains":         len({urlparse(u).netloc for u in urls}),
+        "unique_domains":         len({_domain(u) for u in urls if _domain(u)}),
         "has_link":               True,
     }
 
@@ -124,9 +130,17 @@ def _lexicon_features(text):
         "evidence_density":    ev / wc,
     }
 
-def _all(text):
-    return {**_link_features(text), **_lexicon_features(text)}
+def _all(raw_text, clean_text):
+    # Link extraction MUST run on raw text — cleaned text has [URL] placeholders
+    feats = _link_features(raw_text)
+    # Lexicon scoring runs on cleaned text (removes noise)
+    feats.update(_lexicon_features(clean_text))
+    return feats
 
-def add_evidentiary_features(df, text_col="clean_text"):
-    feats = df[text_col].apply(_all).apply(pd.Series)
+
+def add_evidentiary_features(df, raw_col="self_text", text_col="clean_text"):
+    feats = df.apply(
+        lambda r: _all(r.get(raw_col, "") or "", r.get(text_col, "") or ""),
+        axis=1
+    ).apply(pd.Series)
     return pd.concat([df, feats], axis=1)
