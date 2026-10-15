@@ -1,17 +1,14 @@
-﻿"""
-Main execution script
-"""
+﻿"""Run the reproducible platform hypothesis report."""
+import logging
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.append(str(Path(__file__).parent / 'src'))
-
-from src.config import PROJECT_ROOT
-from src.data_processing import load_data, preprocess_data
-from src.features import compute_features
-from src.visualization import create_eda_plots
-import logging
+from src.hypothesis_validation import (
+    acute_window_difference,
+    h4_moderation_regression,
+    load_feature_data,
+    platform_difference,
+)
 
 # Setup logging
 logging.basicConfig(
@@ -26,33 +23,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def main():
-    logger.info("Starting Echo of Anonymity analysis...")
-    
-    # Step 1: Load data
-    logger.info("Loading datasets...")
-    # TODO: Implement data loading
-    
-    # Step 2: Preprocess data
-    logger.info("Preprocessing data...")
-    # TODO: Implement preprocessing
-    
-    # Step 3: Compute features
-    logger.info("Computing features...")
-    # TODO: Implement feature computation
-    
-    # Step 4: Create visualizations
-    logger.info("Generating exploratory plots...")
-    # TODO: Implement visualization
-    
-    # Step 5: Run hypothesis tests
-    logger.info("Running hypothesis tests...")
-    # TODO: Implement hypothesis testing
-    
-    # Step 6: Build predictive model
-    logger.info("Building computational model...")
-    # TODO: Implement modeling
-    
-    logger.info("Analysis complete!")
+    logger.info("Loading engineered feature data...")
+    data = load_feature_data()
+    h1 = platform_difference(data, "fk_grade")
+    h2 = platform_difference(data, "rigor_score")
+    h3 = acute_window_difference(data, platform="Reddit")
+    h4 = h4_moderation_regression(data)
+
+    print("Echo of Anonymity hypothesis report")
+    print(f"H1 lexical complexity: p={h1['p_value']:.3g}, Cliff's delta={h1['cliffs_delta']:.3f}")
+    print(f"H2 evidentiary rigor: p={h2['p_value']:.3g}, Cliff's delta={h2['cliffs_delta']:.3f}")
+    print(f"H3 Reddit acute intensity: p={h3['p_value']:.3g}, difference={h3['difference']:.3f}")
+    print(f"H4 readability moderation: p={h4['interaction_p_value']:.3g}, R2={h4['r_squared']:.3f}")
+    logger.info("Analysis complete")
     return 0
 
 if __name__ == "__main__":

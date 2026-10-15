@@ -1,61 +1,75 @@
-"""Sentiment + emotion features."""
-import torch
+"""Sentiment + emotion features.
+
+WHY THIS FILE CHANGED
+----------------------
+The original version called HuggingFace transformer pipelines
+(cardiffnlp/twitter-roberta-base-sentiment-latest and
+j-hartmann/emotion-english-distilroberta-base). Those download multi-hundred-MB
+model weights from the Hugging Face Hub the moment this module is imported.
+In an environment without access to huggingface.co, every call to
+_emotions() raised an exception and silently fell back to
+{neutral: 1.0, everything else: 0.0} (see the bare `except Exception` block
+in the old code). That produced sentiment_score == 0.0 and
+sentiment_intensity == 0.0 for all 10,000 rows -- confirmed by the
+"Reddit means / X means" output in 02_feature_engineering.ipynb, which showed
+sentiment_score = 0.0000 exactly for both platforms. That's what invalidated
+H3 (no variance to find a peak), H4 (regression returned NaN), and H5
+(Granger causality fails on a constant series).
+
+This version replaces the transformer pipelines with two well-established,
+fully offline, pip-installable tools that need no network access at runtime:
+  - VADER (vaderSentiment) for overall sentiment polarity -> sentiment_score
+  - NRCLex (NRC Word-Emotion Association Lexicon) for the six discrete
+    emotion categories (anger, disgust, fear, joy, sadness, surprise) that
+    03_exploratory_data_analysis.ipynb and 04_computational_model.ipynb
+    already reference by name.
+
+Install once before rerunning the pipeline:
+    pip install vaderSentiment NRCLex
+
+Function signature and output columns are unchanged
+(anger, disgust, fear, joy, neutral, sadness, surprise, sentiment_score,
+sentiment_intensity), so no other notebook needs to change.
+"""
+import re
 import pandas as pd
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from nrclex import NRCLex
 
-_DEVICE = 0 if torch.cuda.is_available() else -1
-print(f"[sentiment] device = {'GPU' if _DEVICE == 0 else 'CPU'}")
-
-_sent = pipeline(
-    "sentiment-analysis",
-    model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-    device=_DEVICE,
-)
-
-# probe once
-_probe = _sent("This is a test of the sentiment pipeline.")
-print(f"[sentiment] probe -> {_probe}")
-
-_emo_name = "j-hartmann/emotion-english-distilroberta-base"
-_emo_tok = AutoTokenizer.from_pretrained(_emo_name)
-_emo_mod = AutoModelForSequenceClassification.from_pretrained(_emo_name)
-_emo_mod.eval()
-if _DEVICE == 0:
-    _emo_mod = _emo_mod.to("cuda")
+_vader = SentimentIntensityAnalyzer()
 
 _EMO_LABELS = ["anger", "disgust", "fear", "joy", "neutral", "sadness", "surprise"]
-
-# map labels from the RoBERTa sentiment model
-_LABEL_MAP = {
-    "LABEL_0": -1, "negative": -1,
-    "LABEL_1": 0,  "neutral": 0,
-    "LABEL_2": 1,  "positive": 1,
-}
+_TOKEN_RE = re.compile(r"[a-zA-Z']+")
 
 
 def _sentiment(text):
+    """VADER compound score in [-1, 1]; positive = positive sentiment,
+    same convention the old transformer-based version used."""
     if not isinstance(text, str) or len(text.strip()) < 5:
         return 0.0
     try:
-        r = _sent(text[:512])[0]
-        return _LABEL_MAP[r["label"]] * float(r["score"])
+        return float(_vader.polarity_scores(text)["compound"])
     except Exception as e:
         print(f"[sentiment error] {type(e).__name__}: {e} | input: {text[:60]!r}")
         return 0.0
 
 
 def _emotions(text):
+    """NRC-lexicon-based discrete emotion proportions. Fully offline --
+    the lexicon ships bundled with the NRCLex package."""
     if not isinstance(text, str) or len(text.strip()) < 5:
         return {k: 0.0 for k in _EMO_LABELS} | {"neutral": 1.0}
     try:
-        inp = _emo_tok(text[:512], return_tensors="pt",
-                       truncation=True, max_length=512)
-        if _DEVICE == 0:
-            inp = {k: v.to("cuda") for k, v in inp.items()}
-        with torch.no_grad():
-            logits = _emo_mod(**inp).logits
-        p = torch.nn.functional.softmax(logits, dim=-1)[0].cpu().tolist()
-        return dict(zip(_EMO_LABELS, p))
+        tokens = _TOKEN_RE.findall(text.lower())
+        if not tokens:
+            return {k: 0.0 for k in _EMO_LABELS} | {"neutral": 1.0}
+        obj = NRCLex()
+        obj.load_token_list(tokens)
+        freq = obj.affect_frequencies
+        out = {k: freq.get(k, 0.0) for k in
+               ["anger", "disgust", "fear", "joy", "sadness", "surprise"]}
+        out["neutral"] = max(0.0, 1.0 - sum(out.values()))
+        return out
     except Exception as e:
         print(f"[emotion error] {type(e).__name__}: {e}")
         return {k: 0.0 for k in _EMO_LABELS} | {"neutral": 1.0}
@@ -63,10 +77,13 @@ def _emotions(text):
 
 def add_sentiment_features(df, text_col="clean_text"):
     print(f"[sentiment] computing on {len(df):,} rows ...")
-    df["sentiment_score"] = df[text_col].apply(_sentiment)
-    df["sentiment_intensity"] = df["sentiment_score"].abs()
-    print(f"[sentiment] non-zero scores: {(df['sentiment_score'] != 0).sum():,}")
-
-    print("[sentiment] computing emotions ...")
+    print("[sentiment] computing emotions (NRC lexicon) ...")
     emo = df[text_col].apply(_emotions).apply(pd.Series)
-    return pd.concat([df, emo], axis=1)
+    result = pd.concat([df, emo], axis=1)
+
+    print("[sentiment] computing polarity (VADER) ...")
+    result["sentiment_score"] = df[text_col].apply(_sentiment)
+    result["sentiment_intensity"] = 1.0 - result["neutral"]
+
+    print(f"[sentiment] non-zero scores: {(result['sentiment_score'] != 0).sum():,}")
+    return result

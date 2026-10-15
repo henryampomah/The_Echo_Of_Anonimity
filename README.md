@@ -43,19 +43,7 @@ pip install -r requirements.txt
 ## Research Questions
 1. How do platform affordances moderate lexical complexity in political discourse?
 2. Does evidentiary reasoning differ between Reddit and X?
-3. What are the temporal dynamics of emotional contagion across platforms?
+
 4. Can we predict platform from linguistic features alone?
 
-## Status
-Phase 1: ✅ Data Acquisition Complete
-Phase 2: 🔄 Data Preprocessing in Progress
-Phase 3: ⏳ Feature Engineering
-Phase 4: ⏳ Hypothesis Testing
-Phase 5: ⏳ Predictive Modeling
-Phase 6: ⏳ Writing & Submission
 
-## Contact
-[Your Name] - [Your Email]
-
-## License
-[Your License]

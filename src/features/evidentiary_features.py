@@ -80,6 +80,9 @@ ALL_EVIDENTIARY = [w for lst in EVIDENTIARY_LEXICON.values() for w in lst]
 def _extract_urls(text):
     return re.findall(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+])+", text or "")
 
+def _is_excluded_url(url):
+    return url.lower().startswith(("http://t.co/", "https://t.co/"))
+
 def _credibility(url):
     try:
         d = urlparse(url).netloc.lower()
@@ -101,15 +104,16 @@ def _domain(url):
         return ""
 
 def _link_features(text):
-    urls = _extract_urls(text)
+    urls = [url for url in _extract_urls(text) if not _is_excluded_url(url)]
     if not urls:
         return {"link_count": 0, "avg_domain_credibility": 0,
-                "rigor_score": 0, "unique_domains": 0, "has_link": False}
+                "link_rigor_score": 0, "unique_domains": 0,
+                "has_link": False}
     creds = [_credibility(u) for u in urls]
     return {
         "link_count":             len(urls),
         "avg_domain_credibility": sum(creds) / len(creds),
-        "rigor_score":            len(urls) * (sum(creds) / len(creds)),
+        "link_rigor_score":       min(1.0, sum(creds)),
         "unique_domains":         len({_domain(u) for u in urls if _domain(u)}),
         "has_link":               True,
     }
@@ -134,7 +138,14 @@ def _all(raw_text, clean_text):
     # Link extraction MUST run on raw text — cleaned text has [URL] placeholders
     feats = _link_features(raw_text)
     # Lexicon scoring runs on cleaned text (removes noise)
-    feats.update(_lexicon_features(clean_text))
+    lexicon = _lexicon_features(clean_text)
+    feats.update(lexicon)
+    lexical_signal = max(0.0, min(1.0, lexicon["rigor_lexicon_score"]))
+    feats["rigor_score"] = (
+        0.6 * feats["link_rigor_score"]
+        + 0.4 * lexical_signal
+    )
+    feats.pop("link_rigor_score")
     return feats
 
 
